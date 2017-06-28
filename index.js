@@ -1,11 +1,33 @@
 const request = require('request');
 const __ = require('lodash');
 const async = require('async');
+const neodoc = require('neodoc');
+
+const doc = 'Usage:\n' +
+'  zagallo [options] <url> <word>\n' +
+'Options:\n' +
+'  -d, --delay <delay>      Time to wait between reactions. [default: 600]\n' +
+'  -c, --cowboy             Do not check for failures. Good for show off. Bad for consistency. Ignore all following options.\n' +
+'  -r, --retries <retries>  Number of retries on each reaction. [default: 3]\n' +
+'  -p, --perfect            Fail on c-c-c-combo-breaking.\n' +
+'  -a, --allow-failures     Do not remove all previous reactions on failure or c-c-c-combo-breaking.\n' +
+'  -v, --version            Show the version.\n' +
+'  -h, --help               Show this help.\n';
+
+const opts = neodoc.run(doc, {
+  laxPlacement: true,
+  smartOptions: true,
+  versionFlags: ['-v', '--version']
+});
 
 const TOKEN = "xoxp-2164313994-18782410023-201005159461-ce1c29cec96c1aaefa5105d300757f50";
-
-const url = process.argv[2];
-const word = process.argv[3];
+const url = opts['<url>'];
+const word = opts['<word>'];
+const retries = opts['-r'];
+const delay = opts['-d'];
+const removeOnFail = !opts['-a'];
+const perfect = opts['-p'];
+const cowboy = opts['-c'];
 
 if (!url || !word) {
   console.error('Missing arguments');
@@ -106,7 +128,7 @@ const word2Emoji = function(word) {
 };
 
 const arrayContains = function(a1, a2) {
-  if (a1.length !== a2.length) return false;
+  if (a1.length !== a2.length && perfect) return false;
   for (var i = 0; i < a1.length; i++) {
     if (a1[i] !== a2[i]) return false;
   }
@@ -119,13 +141,18 @@ const postEmojis = function(emojiList) {
   }, function(e, i, b) {
     var reactions = __.map((JSON.parse(b).message || {}).reactions || [], 'name');
     async.mapSeries(emojiList, function(emoji, done) {
-      async.retry(3, function(reacted) {
+      async.retry(retries, function(reacted) {
         setTimeout(function() {
           console.log('\n------- trying', emoji);
           request({
             method: 'post',
             url: 'https://slack.com/api/reactions.add' + pathParams(emoji),
           }, function() {
+            if (cowboy) {
+              reacted();
+              return;
+            }
+
             request({
               url: 'https://slack.com/api/reactions.get' + pathParams(emoji),
             }, function(e, i, body) {
@@ -133,7 +160,7 @@ const postEmojis = function(emojiList) {
               console.log('reactions:', reactions.join(','));
               console.log('newReactions:', newReactions.join(','));
 
-              if (arrayContains(reactions.concat(emoji), newReactions)) {
+              if (arrayContains(perfect ? reactions.concat(emoji) : reactions, newReactions)) {
                 reactions = newReactions;
                 console.log('ok');
                 reacted();
@@ -148,10 +175,10 @@ const postEmojis = function(emojiList) {
               }
             });
           });
-        }, 600);
+        }, delay);
       }, done);
     }, function(error) {
-      if (error) {
+      if (error && removeOnFail) {
         console.log('error: removing all');
         removeEmojis(reactions);
       }
@@ -161,7 +188,7 @@ const postEmojis = function(emojiList) {
 
 const removeEmojis = function(emojiList) {
   async.mapSeries(emojiList, function(emoji, done) {
-    console.log('-------removing', emoji);
+    console.log('\n------- removing', emoji);
     request({
       method: 'post',
       url: 'https://slack.com/api/reactions.remove' + pathParams(emoji)
