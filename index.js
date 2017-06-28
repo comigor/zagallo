@@ -106,6 +106,7 @@ const word2Emoji = function(word) {
 };
 
 const arrayContains = function(a1, a2) {
+  if (a1.length !== a2.length) return false;
   for (var i = 0; i < a1.length; i++) {
     if (a1[i] !== a2[i]) return false;
   }
@@ -118,7 +119,7 @@ const postEmojis = function(emojiList) {
   }, function(e, i, b) {
     var reactions = __.map((JSON.parse(b).message || {}).reactions || [], 'name');
     async.mapSeries(emojiList, function(emoji, done) {
-      async.retry(5, function(reacted) {
+      async.retry(3, function(reacted) {
         setTimeout(function() {
           console.log('\n------- trying', emoji);
           request({
@@ -132,7 +133,7 @@ const postEmojis = function(emojiList) {
               console.log('reactions:', reactions.join(','));
               console.log('newReactions:', newReactions.join(','));
 
-              if (arrayContains(reactions, newReactions)) {
+              if (arrayContains(reactions.concat(emoji), newReactions)) {
                 reactions = newReactions;
                 console.log('ok');
                 reacted();
@@ -149,6 +150,23 @@ const postEmojis = function(emojiList) {
           });
         }, 600);
       }, done);
+    }, function(error) {
+      if (error) {
+        console.log('error: removing all');
+        removeEmojis(reactions);
+      }
+    });
+  });
+};
+
+const removeEmojis = function(emojiList) {
+  async.mapSeries(emojiList, function(emoji, done) {
+    console.log('-------removing', emoji);
+    request({
+      method: 'post',
+      url: 'https://slack.com/api/reactions.remove' + pathParams(emoji)
+    }, function() {
+      done();
     });
   });
 };
