@@ -29,14 +29,9 @@ const removeOnFail = !opts['-a'];
 const perfect = opts['-p'];
 const cowboy = opts['-c'];
 
-if (!url || !word) {
-  console.error('Missing arguments');
-  process.exit(1);
-}
-
-const channel = (/\/([A-Z0-9]+)\//.exec(url) || [])[1];
-const tmpts = (/p([0-9]+)$/.exec(url) || [])[1];
-const file = (/\/([^p].*)$/.exec(url) || [])[1];
+const channel = (/\/archives\/([A-Z0-9]+)\/p\d+/.exec(url) || [])[1];
+const tmpts = (/\/p(\d+)/.exec(url) || [])[1];
+const file = (/\/files\/[^\/]+\/([A-Z0-9]+)\//.exec(url) || [])[1];
 
 var timestamp = null;
 if (tmpts) {
@@ -88,10 +83,10 @@ const emojiMapping = {
 };
 
 const pathParams = function(emoji) {
-  if (tmpts) {
-    return '?token=' + TOKEN + '&name=' + emoji + '&channel=' + channel + '&timestamp=' + timestamp + '&pretty=1';
+  if (file) {
+    return '?token=' + TOKEN + '&name=' + emoji + '&file=' + file + '&pretty=1';
   } else {
-    return '?token=' + TOKEN + '&name=' + emoji + '&channel=' + channel + '&file=' + file + '&pretty=1';
+    return '?token=' + TOKEN + '&name=' + emoji + '&channel=' + channel + '&timestamp=' + timestamp + '&pretty=1';
   }
 };
 
@@ -139,7 +134,7 @@ const postEmojis = function(emojiList) {
   request({
     url: 'https://slack.com/api/reactions.get' + pathParams('')
   }, function(e, i, b) {
-    var reactions = __.map((JSON.parse(b).message || {}).reactions || [], 'name');
+    var reactions = __.map((JSON.parse(b)[file ? 'file' : 'message'] || {}).reactions || [], 'name');
     async.mapSeries(emojiList, function(emoji, done) {
       async.retry(retries, function(reacted) {
         setTimeout(function() {
@@ -156,7 +151,7 @@ const postEmojis = function(emojiList) {
             request({
               url: 'https://slack.com/api/reactions.get' + pathParams(emoji),
             }, function(e, i, body) {
-              var newReactions = __.map((JSON.parse(body).message || {}).reactions || [], 'name');
+              var newReactions = __.map((JSON.parse(body)[file ? 'file' : 'message'] || {}).reactions || [], 'name');
               console.log('reactions:', reactions.join(','));
               console.log('newReactions:', newReactions.join(','));
 
