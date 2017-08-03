@@ -1,6 +1,6 @@
 {
-  "name": "zagallo",
-  "version": "0.0.1",
+  "name": "zagallobot",
+  "version": "0.1.0",
   "description": "",
   "main": "./index.js",
   "bin": "./index.js",
@@ -12,6 +12,8 @@
   "license": "MIT",
   "dependencies": {
     "async": "^2.4.1",
+    "babel-preset-env": "^1.6.0",
+    "babel-register": "^6.24.1",
     "lodash": "^4.17.4",
     "neodoc": "^1.4.0",
     "request": "^2.81.0"
